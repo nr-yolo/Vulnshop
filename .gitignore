@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Database
+database/*.db
+database/*.db-journal
+
+# Uploads
+backend/public/uploads/**/*
+!backend/public/uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+backend/access.log
+
+# Build
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

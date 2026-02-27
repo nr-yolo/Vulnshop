@@ -1,0 +1,2 @@
+This is a test file to verify path traversal vulnerability.
+If you can read this via the image endpoint, path traversal is working!

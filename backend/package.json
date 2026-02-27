@@ -1,0 +1,21 @@
+{
+  "name": "vulnerable-ecommerce-backend",
+  "version": "1.0.0",
+  "description": "Deliberately vulnerable e-commerce API for security training",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node init-db.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.7",
+    "crypto": "^1.0.1",
+    "xml2js": "^0.6.2",
+    "cors": "^2.8.5"
+  }
+}

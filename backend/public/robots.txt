@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /dependencies/
+# Hidden directory: /dependencies/ contains sensitive files
