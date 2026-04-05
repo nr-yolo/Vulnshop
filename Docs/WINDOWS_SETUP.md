@@ -10,7 +10,12 @@
 
 ## 📥 Installation Steps
 
-### Step 1: Clone the Repo
+### Step 1: Extract the ZIP file
+
+1. Right-click on `vulnerable-ecommerce.zip`
+2. Select "Extract All..."
+3. Choose a location (e.g., `C:\Projects\`)
+4. Click "Extract"
 
 ### Step 2: Run Setup
 
@@ -118,17 +123,45 @@ npm install
 - Click "Allow access" when prompted
 - This allows Node.js to run local servers
 
+## 📝 Testing with curl on Windows
 
+### Option 1: Use PowerShell (Built-in)
+
+```powershell
+# SQL Injection test
+Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method POST -ContentType "application/json" -Body '{"username":"admin'' OR ''1''=''1'' --","password":"test"}'
+
+# IDOR test
+Invoke-RestMethod -Uri "http://localhost:3001/api/users/1"
+```
+
+### Option 2: Install curl for Windows
+
+Download from: https://curl.se/windows/
+
+### Option 3: Use Postman
+
+Download from: https://www.postman.com/downloads/
+
+## 🔍 Testing Tools for Windows
+
+**Recommended:**
+- **Burp Suite Community Edition** - https://portswigger.net/burp/communitydownload
+- **Postman** - https://www.postman.com/downloads/
+- **Firefox Developer Tools** - Built into Firefox
+- **Chrome DevTools** - Built into Chrome
 
 ## 📂 Project Structure
 
 ```
-VULNSHOP/
+vulnerable-ecommerce/
 ├── setup.bat              ← Run this first (Windows setup)
 ├── start-backend.bat      ← Start backend server
 ├── start-frontend.bat     ← Start frontend app
 ├── README.md              ← Main documentation
 ├── WINDOWS_SETUP.md       ← This file
+├── TESTING_GUIDE.md       ← Exploitation tutorials
+├── VULNERABILITIES.md     ← Quick reference
 ├── SOLUTIONS.md           ← How to fix vulnerabilities
 ├── backend/               ← Node.js API server
 │   ├── server.js
@@ -147,3 +180,45 @@ VULNSHOP/
 - **ONLY** use on local machine (localhost)
 - **FOR TRAINING** purposes only
 - Windows Firewall will protect you on local network
+
+## 🎯 Quick Start Commands
+
+```cmd
+REM Setup (one time)
+setup.bat
+
+REM Start backend (keep this running)
+start-backend.bat
+
+REM Start frontend (keep this running)
+start-frontend.bat
+
+REM Stop servers: Press Ctrl+C in each window
+```
+
+## 📚 Next Steps
+
+1. Open http://localhost:3000
+2. Login with `admin` / `admin`
+3. Read `TESTING_GUIDE.md` for exploitation examples
+4. Try SQL injection: username = `admin' OR '1'='1' --`
+5. Explore all 40+ vulnerabilities!
+
+## 💡 Tips for Windows Users
+
+- **Use PowerShell ISE** for better scripting
+- **Install Windows Terminal** for better command line experience
+- **Use VS Code** to edit code files
+- **Run as Administrator** if you encounter permission issues
+- **Disable antivirus temporarily** if it blocks file operations (re-enable after!)
+
+## 🆘 Need Help?
+
+1. Check `README.md` for detailed documentation
+2. Review `TESTING_GUIDE.md` for examples
+3. Make sure Node.js is properly installed
+4. Ensure ports 3000 and 3001 are free
+
+---
+
+Happy Learning! 🎓

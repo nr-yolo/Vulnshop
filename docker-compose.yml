@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vulnshop-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3001
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./database:/app/../database
+    restart: unless-stopped
+    networks:
+      - vulnshop-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vulnshop-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - HOST=0.0.0.0
+      - REACT_APP_API_URL=http://localhost:3001/api
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - vulnshop-network
+    stdin_open: true
+    tty: true
+
+networks:
+  vulnshop-network:
+    driver: bridge
+
+volumes:
+  database:

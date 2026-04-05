@@ -18,11 +18,36 @@ const PORT = 3001;
 // DO NOT deploy this in production or on public networks
 
 // Middleware
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://0.0.0.0:3000',
+  // Allow connections from Docker containers
+  /^http:\/\/.*:3000$/
+];
+
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is allowed
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return allowed === origin;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins for this vulnerable app
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'TRACE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Forwarded-For']
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.text({ type: 'application/xml' }));
@@ -42,7 +67,7 @@ const dependenciesDir = path.join(__dirname, 'public', 'dependencies');
   }
 });
 
-
+// Create .git leak with sensitive commits
 fs.writeFileSync(path.join(gitDir, 'HEAD'), 'ref: refs/heads/main\n');
 fs.writeFileSync(path.join(gitDir, 'config'), '[core]\n\trepositoryformatversion = 0\n\t[user]\n\tname = admin\n\temail = admin@vulnerable-shop.com\n');
 const gitLogs = `commit a1b2c3d4e5f6 - Added database password: db_pass_2024_secure!\ncommit f6e5d4c3b2a1 - Fixed API key leak: sk-prod-abc123xyz789\ncommit 1234567890ab - Removed hardcoded AWS credentials\n`;
@@ -51,10 +76,10 @@ fs.writeFileSync(path.join(gitDir, 'logs.txt'), gitLogs);
 // Create dependencies directory content
 fs.writeFileSync(path.join(dependenciesDir, 'package-lock.json'), '{"name": "vulnerable-shop", "dependencies": {}}');
 
-
+// Create robots.txt with leak
 fs.writeFileSync(path.join(__dirname, 'public', 'robots.txt'), 'User-agent: *\nDisallow: /admin/\nDisallow: /dependencies/\n# Hidden directory: /dependencies/ contains sensitive files\n');
 
-
+// File upload configuration (VULNERABLE)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (req.path.includes('profile-photo')) {
@@ -64,19 +89,20 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-
-    cb(null, file.originalname);
+    // VULN: No sanitization
+    cb(null, Date.now() + '-' + file.originalname);
   }
 });
 
 const upload = multer({
   storage: storage,
-
+  // VULN: Weak file validation
   fileFilter: (req, file, cb) => {
+    // Only checks content-type header (easily spoofed)
     if (file.mimetype === 'application/pdf' || file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
       cb(null, true);
     } else {
-      cb(null, true); 
+      cb(null, true); // Accept anyway (vulnerability)
     }
   }
 });
@@ -103,6 +129,7 @@ db.get('SELECT * FROM smtp_config WHERE id = 1', (err, row) => {
   }
 });
 
+// VULN: Weak auth middleware - validates token but uses weak hashing
 function checkAuth(req, res, next) {
   const authToken = req.cookies.authToken;
   const userId = req.cookies.userId;
@@ -111,26 +138,31 @@ function checkAuth(req, res, next) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   
+  // VULN: Validate token against database using SHA1 (weak)
   db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
     if (err || !user) {
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
     
+    // VULN: Token is SHA1 hash of password (weak but validated)
     const expectedToken = crypto.createHash('sha1').update(user.password).digest('hex');
     
     if (authToken !== expectedToken) {
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
     
+    // VULN: No expiration check, but at least validates the token matches
     req.user = user; // Attach user to request
     next();
   });
 }
 
+// VULN: Brute force protection with X-Forwarded-For bypass and IP blacklisting
 const loginAttempts = {};
 const blacklistedIPs = {};
 
 function rateLimitLogin(req, res, next) {
+  // VULN: Uses X-Forwarded-For which can be spoofed
   const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   
   // Check if IP is blacklisted
@@ -196,9 +228,11 @@ function sendEmail(to, subject, text) {
 
 // ==================== AUTHENTICATION ENDPOINTS ====================
 
+// VULN: SQL Injection in login
 app.post('/api/auth/login', rateLimitLogin, (req, res) => {
   const { username, password } = req.body;
   
+  // VULNERABLE: Direct string concatenation allows SQL injection
   const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
   
   db.get(query, (err, user) => {
@@ -207,9 +241,10 @@ app.post('/api/auth/login', rateLimitLogin, (req, res) => {
     }
     
     if (user) {
+      // VULN: Cookie is SHA1 hash of password (weak)
       const authToken = crypto.createHash('sha1').update(password).digest('hex');
-      res.cookie('authToken', authToken, { httpOnly: false }); 
-      res.cookie('userId', user.id); 
+      res.cookie('authToken', authToken, { httpOnly: false }); // VULN: Not httpOnly
+      res.cookie('userId', user.id); // VULN: userId in cookie
       
       if (user.otp_enabled) {
         // Generate 4-digit OTP
@@ -223,7 +258,7 @@ app.post('/api/auth/login', rateLimitLogin, (req, res) => {
       
       res.json({ success: true, user: { id: user.id, username: user.username, role: user.role } });
     } else {
-  
+      // VULN: Different response times for enumeration
       setTimeout(() => {
         res.status(401).json({ error: 'Invalid credentials' });
       }, Math.random() * 100);
@@ -231,6 +266,7 @@ app.post('/api/auth/login', rateLimitLogin, (req, res) => {
   });
 });
 
+// VULN: OTP verification with multiple vulnerabilities
 app.post('/api/auth/verify-otp', (req, res) => {
   const { username, otp } = req.body;
   
@@ -239,6 +275,8 @@ app.post('/api/auth/verify-otp', (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // VULN: No rate limiting on OTP attempts (brute force possible)
+    // VULN: OTP from ANY user can be used (no user-OTP binding check)
     db.get('SELECT * FROM otp WHERE otp = ? ORDER BY created_at DESC LIMIT 1', [otp], (err, otpRecord) => {
       if (otpRecord) {
         const password = user.password;
@@ -246,18 +284,24 @@ app.post('/api/auth/verify-otp', (req, res) => {
         res.cookie('authToken', authToken, { httpOnly: false });
         res.cookie('userId', user.id);
         
+        // VULN: Response manipulation can bypass check
         res.json({ success: true, valid: true, user: { id: user.id, username: user.username, role: user.role } });
       } else {
+        // VULN: If client modifies response to { success: true }, they can bypass
         res.json({ success: false, valid: false });
       }
     });
   });
 });
 
+// VULN: Registration allows username overwrite
 app.post('/api/auth/register', (req, res) => {
   const { username, password } = req.body;
   
+  // VULN: Check if username exists to preserve role (especially admin)
   db.get('SELECT role FROM users WHERE username = ?', [username], (err, existingUser) => {
+    // VULN: DELETE then INSERT allows overwriting existing users
+    // But preserve admin role if overwriting admin account
     const role = existingUser?.role || 'customer';
     
     db.run('DELETE FROM users WHERE username = ?', [username], () => {
@@ -274,13 +318,17 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
+// VULN: Session doesn't expire on logout
 app.post('/api/auth/logout', (req, res) => {
+  // VULN: Cookies are NOT cleared or invalidated
   res.json({ success: true, message: 'Logged out' });
 });
 
+// VULN: Password change vulnerable to brute force
 app.post('/api/auth/change-password', (req, res) => {
   const { username, oldPassword, newPassword } = req.body;
   
+  // VULN: No rate limiting, allows brute force of old password
   db.get('SELECT * FROM users WHERE username = ? AND password = ?', [username, oldPassword], (err, user) => {
     if (user) {
       db.run('UPDATE users SET password = ? WHERE id = ?', [newPassword, user.id], () => {
@@ -292,31 +340,39 @@ app.post('/api/auth/change-password', (req, res) => {
   });
 });
 
+// VULN: Forgot password with timing attack for user enumeration
 app.post('/api/auth/forgot-password', (req, res) => {
   const { username } = req.body;
   
   db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
     if (user) {
+      // VULN: Predictable token
       const token = crypto.randomBytes(8).toString('hex');
       
+      // VULN: Token is reusable across users
       db.run('INSERT INTO reset_tokens (user_id, token) VALUES (?, ?)', [user.id, token]);
       
       sendEmail(user.email, 'Password Reset', `Your reset token: ${token}`);
       
+      // VULN: Different timing reveals if user exists
       setTimeout(() => {
         res.json({ success: true, message: 'Reset token sent' });
       }, 500);
     } else {
+      // VULN: Faster response when user doesn't exist
       res.json({ success: true, message: 'Reset token sent' });
     }
   });
 });
 
+// VULN: Reset password token works for any user
 app.post('/api/auth/reset-password', (req, res) => {
   const { token, newPassword } = req.body;
   
+  // VULN: Just checks if token exists, doesn't validate user
   db.get('SELECT * FROM reset_tokens WHERE token = ?', [token], (err, resetToken) => {
     if (resetToken) {
+      // VULN: Can change ANY user's password if you have ANY valid token
       const userId = req.body.userId || resetToken.user_id;
       
       db.run('UPDATE users SET password = ? WHERE id = ?', [newPassword, userId], () => {
@@ -340,6 +396,7 @@ app.post('/api/auth/enable-otp', (req, res) => {
 
 // ==================== USER ENDPOINTS ====================
 
+// VULN: IDOR - can access any user's profile
 app.get('/api/users/:userId', checkAuth, (req, res) => {
   const userId = req.params.userId;
   
@@ -354,10 +411,13 @@ app.get('/api/users/:userId', checkAuth, (req, res) => {
   );
 });
 
+// VULN: IDOR - Update user profile with PUT/PATCH
 app.put('/api/users/:userId', checkAuth, (req, res) => {
   const userId = req.params.userId;
   const { email, address, credit } = req.body;
   
+  // VULN: No authorization check - can update any user
+  // VULN: Can modify credit directly
   const updates = [];
   const values = [];
   
@@ -370,6 +430,7 @@ app.put('/api/users/:userId', checkAuth, (req, res) => {
     values.push(address);
   }
   if (credit !== undefined) {
+    // VULN: Can manipulate credit!
     updates.push('credit = ?');
     values.push(credit);
   }
@@ -394,6 +455,7 @@ app.patch('/api/users/:userId', checkAuth, (req, res) => {
   const userId = req.params.userId;
   const { email, address, credit } = req.body;
   
+  // VULN: No authorization check - can update any user
   const updates = [];
   const values = [];
   
@@ -406,6 +468,7 @@ app.patch('/api/users/:userId', checkAuth, (req, res) => {
     values.push(address);
   }
   if (credit !== undefined) {
+    // VULN: Can manipulate credit via PATCH!
     updates.push('credit = ?');
     values.push(credit);
   }
@@ -425,8 +488,10 @@ app.patch('/api/users/:userId', checkAuth, (req, res) => {
   });
 });
 
+// VULN: CSRF vulnerable address update (but requires auth token now)
 app.post('/api/users/:userId/address', checkAuth, (req, res) => {
   const userId = req.params.userId;
+  const address = req.query.data; // VULN: Gets data from query param
   const authToken = req.cookies.authToken;
   
   // Check if user is authenticated
@@ -434,11 +499,13 @@ app.post('/api/users/:userId/address', checkAuth, (req, res) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
   
+  // VULN: No CSRF token validation
   db.run('UPDATE users SET address = ? WHERE id = ?', [address, userId], () => {
     res.json({ success: true });
   });
 });
 
+// VULN: File upload with weak validation
 app.post('/api/users/:userId/profile-photo', checkAuth, upload.single('file'), (req, res) => {
   const userId = req.params.userId;
   const filename = req.file.filename;
@@ -448,6 +515,7 @@ app.post('/api/users/:userId/profile-photo', checkAuth, upload.single('file'), (
   });
 });
 
+// VULN: IDOR - manipulate any user's wallet
 app.get('/api/users/:userId/wallet', checkAuth, (req, res) => {
   const userId = req.params.userId;
   
@@ -456,9 +524,12 @@ app.get('/api/users/:userId/wallet', checkAuth, (req, res) => {
   });
 });
 
+// VULN: Can request credit for any user
 app.post('/api/users/:userId/credit-request', checkAuth, (req, res) => {
   const userId = req.params.userId;
   
+  // In real app, this would notify admin. Here it just auto-approves
+  // VULN: Can add credit to any user
   db.run('UPDATE users SET credit = credit + 100 WHERE id = ?', [userId], () => {
     res.json({ success: true, message: 'Credit added' });
   });
@@ -470,6 +541,7 @@ app.post('/api/users/:userId/credit-request', checkAuth, (req, res) => {
 app.get('/api/products', (req, res) => {
   const search = req.query.search || '';
   
+  // VULN: SQL injection in search
   const query = `SELECT * FROM products WHERE name LIKE '%${search}%' OR description LIKE '%${search}%'`;
   
   db.all(query, (err, products) => {
@@ -493,10 +565,12 @@ app.get('/api/products/:productId', (req, res) => {
   });
 });
 
+// VULN: Update product with PUT (no admin check!)
 app.put('/api/products/:productId', checkAuth, (req, res) => {
   const productId = req.params.productId;
   const { name, description, price, stock } = req.body;
   
+  // VULN: No admin authorization check - any authenticated user can update products!
   const updates = [];
   const values = [];
   
@@ -513,6 +587,7 @@ app.put('/api/products/:productId', checkAuth, (req, res) => {
     values.push(price);
   }
   if (stock !== undefined) {
+    // VULN: Can manipulate stock!
     updates.push('stock = ?');
     values.push(stock);
   }
@@ -537,6 +612,7 @@ app.patch('/api/products/:productId', checkAuth, (req, res) => {
   const productId = req.params.productId;
   const { name, description, price, stock } = req.body;
   
+  // VULN: No admin authorization check
   const updates = [];
   const values = [];
   
@@ -572,42 +648,50 @@ app.patch('/api/products/:productId', checkAuth, (req, res) => {
   });
 });
 
+// VULN: XXE vulnerability in stock check
 app.post('/api/products/check-stock', (req, res) => {
   const xmlData = req.body;
   
+  // VULN: XXE - explicitly enable external entity processing
   const parser = new xml2js.Parser({
     explicitArray: false,
   });
   
+  // For XXE to work with xml2js, we need to use a different approach
   // xml2js doesn't support external entities, so we'll use raw XML parsing
   
   try {
+    // Check if this is an XXE attempt by looking for DOCTYPE
     if (xmlData.includes('<!DOCTYPE') || xmlData.includes('<!ENTITY')) {
+      // VULN: Process the external entity
       const entityMatch = xmlData.match(/SYSTEM\s+["']([^"']+)["']/);
       if (entityMatch && entityMatch[1]) {
         const entityUrl = entityMatch[1];
         
+        // VULN: Support both file:// and http:// protocols (XXE + SSRF)
         if (entityUrl.startsWith('file://') || entityUrl.startsWith('/')) {
+          // Local file read (XXE)
           const filePath = entityUrl.replace('file://', '');
           try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
             return res.json({ 
-              productId: '',
+              productId: 'XXE_EXPLOIT',
               stock: 0,
               inStock: false,
-              Data: fileContent,
-              expType: ''
+              xxeData: fileContent,
+              exploitType: 'Local File Read'
             });
           } catch (err) {
             return res.json({
-              productId: '',
+              productId: 'XXE_EXPLOIT',
               stock: 0,
               inStock: false,
-              error: 'err',
+              error: 'File not found or not accessible',
               attemptedPath: filePath
             });
           }
         } else if (entityUrl.startsWith('http://') || entityUrl.startsWith('https://')) {
+          // SSRF - Make HTTP request
           const http = require('http');
           const https = require('https');
           const url = require('url');
@@ -624,21 +708,21 @@ app.post('/api/products/check-stock', (req, res) => {
             
             response.on('end', () => {
               res.json({
-                productId: '',
+                productId: 'XXE_SSRF_EXPLOIT',
                 stock: 0,
                 inStock: false,
-                Data: data,
-                expType: '',
+                xxeData: data,
+                exploitType: 'SSRF',
                 targetUrl: entityUrl,
                 statusCode: response.statusCode
               });
             });
           }).on('error', (err) => {
             res.json({
-              productId: '',
+              productId: 'XXE_SSRF_EXPLOIT',
               stock: 0,
               inStock: false,
-              error: ' request failed: ' + err.message,
+              error: 'SSRF request failed: ' + err.message,
               attemptedUrl: entityUrl
             });
           });
@@ -673,6 +757,7 @@ app.post('/api/products/check-stock', (req, res) => {
   }
 });
 
+// Simple stock check endpoint (non-vulnerable version for UI)
 app.get('/api/products/:productId/stock', (req, res) => {
   const productId = req.params.productId;
   
@@ -690,6 +775,7 @@ app.get('/api/products/:productId/stock', (req, res) => {
   });
 });
 
+// VULN: Path traversal in image loading
 app.get('/api/products/image', (req, res) => {
   const filename = req.query.file;
   
@@ -697,8 +783,11 @@ app.get('/api/products/image', (req, res) => {
     return res.status(400).json({ error: 'Filename required' });
   }
   
+  // VULN: No path sanitization - allows directory traversal
+  // Attacker can use ../ to access files outside the images directory
   const filepath = path.join(__dirname, 'public', 'images', filename);
   
+  // VULN: No validation that the resolved path is within the images directory
   if (fs.existsSync(filepath)) {
     res.sendFile(filepath);
   } else {
@@ -706,6 +795,7 @@ app.get('/api/products/image', (req, res) => {
   }
 });
 
+// VULN: Path traversal in profile photo viewing
 app.get('/api/view-photo', (req, res) => {
   const photo = req.query.photo;
   
@@ -713,8 +803,12 @@ app.get('/api/view-photo', (req, res) => {
     return res.status(400).json({ error: 'Photo parameter required' });
   }
   
+  // VULN: No path sanitization - allows directory traversal
+  // User can manipulate the 'photo' parameter to access any file
+  // Example: ?photo=../../server.js
   const photoPath = path.join(__dirname, 'public', 'uploads', 'profile', photo);
   
+  // VULN: No validation of the resolved path
   if (fs.existsSync(photoPath)) {
     const ext = path.extname(photoPath).toLowerCase();
     
@@ -722,7 +816,12 @@ app.get('/api/view-photo', (req, res) => {
     const contentTypes = {
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
-      '.png': 'image/png'
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.txt': 'text/plain',
+      '.js': 'text/plain',
+      '.json': 'application/json',
+      '.md': 'text/plain'
     };
     
     const contentType = contentTypes[ext] || 'application/octet-stream';
@@ -735,9 +834,11 @@ app.get('/api/view-photo', (req, res) => {
   }
 });
 
+// VULN: Path traversal in image loading
 app.get('/api/products/image', (req, res) => {
   const filename = req.query.file;
   
+  // VULN: No path sanitization, allows directory traversal
   const filepath = path.join(__dirname, 'public', 'images', filename);
   
   if (fs.existsSync(filepath)) {
@@ -749,6 +850,7 @@ app.get('/api/products/image', (req, res) => {
 
 // ==================== CART ENDPOINTS ====================
 
+// VULN: IDOR - can manipulate any user's cart
 app.post('/api/cart/:userId/add', checkAuth, (req, res) => {
   const userId = req.params.userId;
   const { productId, quantity } = req.body;
@@ -799,6 +901,7 @@ app.post('/api/cart/:userId/apply-coupon', checkAuth, (req, res) => {
 
 // ==================== ORDER ENDPOINTS ====================
 
+// VULN: Can checkout with insufficient funds or out of stock
 app.post('/api/orders/:userId/checkout', checkAuth, (req, res) => {
   const userId = req.params.userId;
   
@@ -833,6 +936,7 @@ app.post('/api/orders/:userId/checkout', checkAuth, (req, res) => {
           });
         }
         
+        // VULN: Weak stock check - can still be bypassed with race conditions
         let stockError = null;
         for (const { item, product } of results) {
           if (product.stock < item.quantity) {
@@ -902,10 +1006,12 @@ app.get('/api/products/:productId/reviews', (req, res) => {
 
 // ==================== FEEDBACK ENDPOINT ====================
 
+// VULN: Stored XSS via feedback + weak file upload
 app.post('/api/feedback', upload.single('file'), (req, res) => {
   const { userId, message } = req.body;
   const filePath = req.file ? req.file.filename : null;
   
+  // VULN: No XSS sanitization on message
   db.run('INSERT INTO feedback (user_id, message, file_path) VALUES (?, ?, ?)',
     [userId, message, filePath], () => {
       res.json({ success: true });
@@ -931,17 +1037,21 @@ app.post('/api/admin/refill-credit', (req, res) => {
   });
 });
 
+// VULN: Command injection via logs viewer
 app.post('/api/admin/logs', (req, res) => {
   const { command } = req.body;
   
+  // VULN: Direct command execution
   exec(command, { cwd: __dirname }, (error, stdout, stderr) => {
     res.json({ output: stdout || stderr || 'Command executed' });
   });
 });
 
+// VULN: File browser with directory traversal
 app.get('/api/files', (req, res) => {
   const requestedPath = req.query.path || '/';
   
+  // VULN: No path sanitization
   const fullPath = path.join(__dirname, 'public', requestedPath);
   
   try {
@@ -975,6 +1085,7 @@ app.post('/api/admin/smtp-config', (req, res) => {
   });
 });
 
+// VULN: No authentication on server stats
 app.get('/api/admin/server-stats', (req, res) => {
   res.json({
     uptime: process.uptime(),
@@ -985,7 +1096,24 @@ app.get('/api/admin/server-stats', (req, res) => {
 
 // ==================== METRICS ENDPOINT (SSRF TARGET) ====================
 
+// VULN: Open Redirect vulnerability
+app.get('/redirect', (req, res) => {
+  const url = req.query.url;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL parameter required' });
+  }
+  
+  // VULN: No validation of redirect URL - allows open redirect
+  // Attacker can redirect users to malicious sites
+  // Example: /redirect?url=http://malicious.com
+  res.redirect(url);
+});
+
+// VULN: Internal metrics endpoint requires custom header
+// Discoverable via TRACE method
 app.get('/metrics', (req, res) => {
+  // VULN: Requires custom header X-Internal-Auth-Key
   const authKey = req.headers['x-internal-auth-key'];
   
   if (authKey === 'secret_metric_key_12345') {
@@ -1002,22 +1130,23 @@ app.get('/metrics', (req, res) => {
         errors: 234
       },
       internal_endpoints: [
-        '/api/admin/server-stats',
-        '/metrics',
-        '/.git',
-        '/version',
-        '/health'
+        '/admin/debug',
+        '/internal/config',
+        '/metrics'
       ]
     });
   } else {
     res.status(403).json({ 
-      error: 'Forbidden - Missing or invalid authentication header'
+      error: 'Forbidden - Missing or invalid authentication header',
+      hint: 'Try using TRACE method to discover required headers'
     });
   }
 });
 
+// VULN: TRACE method reveals secret header requirement
 app.use((req, res, next) => {
   if (req.method === 'TRACE') {
+    // VULN: TRACE method echoes back the request with hints about secret headers
     res.set('X-Secret-Header-Name', 'X-Internal-Auth-Key');
     res.set('X-Secret-Header-Value', 'secret_metric_key_12345');
     res.set('X-Hint', 'Use X-Internal-Auth-Key header to access /metrics endpoint');
@@ -1048,7 +1177,9 @@ app.get('/version', (req, res) => {
   res.json({ version: '1.0.0', name: 'Vulnerable E-Commerce Platform' });
 });
 
+// Serve uploaded files with directory listing
 app.use('/uploads', express.static(uploadsDir), (req, res, next) => {
+  // VULN: Directory listing enabled
   const reqPath = path.join(uploadsDir, req.path);
   if (fs.existsSync(reqPath) && fs.statSync(reqPath).isDirectory()) {
     const files = fs.readdirSync(reqPath);
@@ -1063,8 +1194,10 @@ app.use('/uploads', express.static(uploadsDir), (req, res, next) => {
   }
 });
 
+// Serve .git directory
 app.use('/.git', express.static(gitDir));
 
+// Create access.log for command injection demo
 fs.writeFileSync(path.join(__dirname, 'access.log'), 
   `192.168.1.100 - - [${new Date().toISOString()}] "GET /api/products HTTP/1.1" 200 1234\n` +
   `192.168.1.101 - - [${new Date().toISOString()}] "POST /api/auth/login HTTP/1.1" 200 567\n` +
@@ -1079,14 +1212,17 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+const HOST = process.env.HOST || 'localhost';
+
+app.listen(PORT, HOST, () => {
   console.log('\n🚨 ================================== 🚨');
   console.log('⚠️  VULNERABLE E-COMMERCE PLATFORM  ⚠️');
   console.log('🚨 ================================== 🚨\n');
   console.log('⚠️  WARNING: This application is INTENTIONALLY INSECURE');
   console.log('⚠️  FOR SECURITY TRAINING PURPOSES ONLY');
   console.log('⚠️  DO NOT deploy on public networks or use in production\n');
-  console.log(`🔗 Server running on http://localhost:${PORT}`);
+  console.log(`🔗 Server running on http://${HOST === '0.0.0.0' ? '0.0.0.0' : HOST}:${PORT}`);
+  console.log(`🌐 Access from browser: http://localhost:${PORT}`);
   console.log(`🔐 Default admin: admin/admin\n`);
   console.log('📚 See README.md for vulnerability documentation\n');
 });

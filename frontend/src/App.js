@@ -35,7 +35,7 @@ function App() {
     if (user) {
       const interval = setInterval(() => {
         loadUser(user.id);
-      }, 60000); // Refresh every 60 seconds
+      }, 3000); // Refresh every 3 seconds
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -82,6 +82,7 @@ function App() {
         {page === 'admin' && <AdminPage user={user} />}
         {page === 'admin-feedback' && <AdminFeedbackPage user={user} />}
         {page === 'feedback' && <FeedbackPage user={user} />}
+        {page === 'api-docs' && <ApiDocsPage />}
       </main>
     </div>
   );
@@ -125,6 +126,7 @@ function Header({ user, setPage, setUser, searchQuery, setSearchQuery, onSearch,
                   <button onClick={() => setPage('feedback')}>💬 Feedback</button>
                 </>
               )}
+              <button onClick={() => setPage('api-docs')}>📚 API Docs</button>
               <button onClick={() => setPage('profile')}>👤 {user.username}</button>
               {user.role === 'admin' && (
                 <>
@@ -150,6 +152,22 @@ function Header({ user, setPage, setUser, searchQuery, setSearchQuery, onSearch,
 function HomePage({ products, user, setPage }) {
   return (
     <div className="home">
+      <div className="welcome-banner">
+        <h2>Welcome to VulnShop</h2>
+        <p>A deliberately vulnerable e-commerce platform for security training</p>
+        <div className="github-link">
+          <a 
+            href={`http://localhost:3001/redirect?url=https://github.com/nr-yolo`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="github-btn"
+          >
+            ⭐ Star us on GitHub
+          </a>
+          <p className="vuln-hint">💡 Hint: Check the redirect URL parameter</p>
+        </div>
+      </div>
+      
       <h2>Featured Products</h2>
       <div className="product-grid">
         {products.map(product => (
@@ -171,6 +189,7 @@ function ProductCard({ product, user }) {
     setShowReviews(true);
   };
 
+  // XXE Vulnerable stock check
   const checkStockXML = async () => {
     try {
       const xmlRequest = `<?xml version="1.0" encoding="UTF-8"?><stockCheck><productId>${product.id}</productId></stockCheck>`;
@@ -181,7 +200,7 @@ function ProductCard({ product, user }) {
         }
       });
       
-      alert(`Stock Check :\nProduct: ${product.name}\nStock: ${res.data.stock} units\nIn Stock: ${res.data.inStock ? 'Yes' : 'No'}`);
+      alert(`Stock Check (XXE Endpoint):\nProduct: ${product.name}\nStock: ${res.data.stock} units\nIn Stock: ${res.data.inStock ? 'Yes' : 'No'}`);
     } catch (err) {
       alert('Stock check failed: ' + (err.response?.data?.error || 'Unknown error'));
     }
@@ -592,9 +611,9 @@ function ProfilePage({ user, setUser }) {
               rel="noopener noreferrer"
               className="photo-link"
             >
-              View Profile Photo 
+              View Profile Photo (Click to open in new tab)
             </a>
-            <p className="photo-line">                           </p>
+            <p className="photo-hint">💡 Hint: Try modifying the 'photo' parameter in the URL</p>
             <img 
               src={`http://localhost:3001/api/view-photo?photo=${user.profile_pic}`} 
               alt="Profile" 
@@ -819,6 +838,339 @@ function AdminPage({ user }) {
   );
 }
 
+function ApiDocsPage() {
+  return (
+    <div className="api-docs-page">
+      <h1>🔌 API Documentation</h1>
+      <p style={{marginBottom: '2rem', color: '#666'}}>
+        Complete API reference for all endpoints. All endpoints vulnerable by design for security training.
+      </p>
+
+      {/* Authentication Endpoints */}
+      <h2>Authentication</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/auth/register</span>
+          <span className="vuln-tag">VULN: Username Overwrite</span>
+        </h3>
+        <p>Register a new user account</p>
+        <h4>Request Body:</h4>
+        <table className="param-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Type</th>
+              <th>Required</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>username</td>
+              <td>string</td>
+              <td>Yes</td>
+              <td>Username (can overwrite existing users)</td>
+            </tr>
+            <tr>
+              <td>password</td>
+              <td>string</td>
+              <td>Yes</td>
+              <td>Password (stored as SHA1 hash)</td>
+            </tr>
+          </tbody>
+        </table>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"success": true, "userId": 1, "role": "customer"}'}</div>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/auth/login</span>
+          <span className="vuln-tag">VULN: SQL Injection</span>
+          <span className="vuln-tag">Brute Force</span>
+        </h3>
+        <p>Login to existing account</p>
+        <h4>Request Body:</h4>
+        <table className="param-table">
+          <thead>
+            <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>username</td><td>string</td><td>Yes</td><td>SQL injectable</td></tr>
+            <tr><td>password</td><td>string</td><td>Yes</td><td>SQL injectable</td></tr>
+          </tbody>
+        </table>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"success": true, "user": {...}, "requireOTP": false}'}</div>
+      </div>
+
+      {/* User Endpoints */}
+      <h2>Users</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-GET">GET</span>
+          <span className="endpoint-path">/api/users/:userId</span>
+          <span className="vuln-tag">VULN: IDOR</span>
+        </h3>
+        <p>Get user profile (any user ID)</p>
+        <h4>Headers:</h4>
+        <table className="param-table">
+          <thead><tr><th>Header</th><th>Value</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td>Cookie</td><td>authToken=...</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"id": 1, "username": "admin", "email": "...", "credit": 100.0, "role": "admin"}'}</div>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-PUT">PUT</span>
+          <span className="endpoint-path">/api/users/:userId</span>
+          <span className="vuln-tag">VULN: IDOR + Credit Manipulation</span>
+        </h3>
+        <p>Update user details (including credit!)</p>
+        <h4>Request Body:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>email</td><td>string</td><td>Update email</td></tr>
+            <tr><td>address</td><td>string</td><td>Update address</td></tr>
+            <tr><td>credit</td><td>number</td><td>⚠️ Directly manipulate credit balance</td></tr>
+          </tbody>
+        </table>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"success": true, "changes": 1}'}</div>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-PATCH">PATCH</span>
+          <span className="endpoint-path">/api/users/:userId</span>
+          <span className="vuln-tag">VULN: IDOR</span>
+        </h3>
+        <p>Partial update user details</p>
+        <h4>Request Body:</h4>
+        <div className="code-block">{'{"credit": 999999}'}</div>
+      </div>
+
+      {/* Product Endpoints */}
+      <h2>Products</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-GET">GET</span>
+          <span className="endpoint-path">/api/products</span>
+          <span className="vuln-tag">VULN: SQL Injection in search</span>
+        </h3>
+        <p>List all products with optional search</p>
+        <h4>Query Parameters:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>search</td><td>string</td><td>Search query (SQL injectable)</td></tr>
+          </tbody>
+        </table>
+        <h4>Response:</h4>
+        <div className="code-block">{'[{"id": 1, "name": "Laptop", "price": 999.99, "stock": 10, ...}]'}</div>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-PUT">PUT</span>
+          <span className="endpoint-path">/api/products/:productId</span>
+          <span className="vuln-tag">VULN: No Admin Check</span>
+        </h3>
+        <p>Update product (any authenticated user can do this!)</p>
+        <h4>Request Body:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>name</td><td>string</td><td>Product name</td></tr>
+            <tr><td>price</td><td>number</td><td>Price (can set to $0.01!)</td></tr>
+            <tr><td>stock</td><td>number</td><td>Stock quantity</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/products/check-stock</span>
+          <span className="vuln-tag">VULN: XXE + SSRF</span>
+        </h3>
+        <p>Check product stock via XML (XXE vulnerable)</p>
+        <h4>Headers:</h4>
+        <table className="param-table">
+          <thead><tr><th>Header</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Content-Type</td><td>application/xml</td></tr>
+          </tbody>
+        </table>
+        <h4>Request Body (XML):</h4>
+        <div className="code-block">{'<?xml version="1.0"?>\n<!DOCTYPE x [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n<stockCheck><productId>&xxe;</productId></stockCheck>'}</div>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"productId": "XXE_EXPLOIT", "xxeData": "file contents..."}'}</div>
+      </div>
+
+      {/* Cart & Orders */}
+      <h2>Shopping Cart & Orders</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/cart/:userId/add</span>
+          <span className="vuln-tag">VULN: IDOR</span>
+        </h3>
+        <p>Add item to cart (any user's cart)</p>
+        <h4>Request Body:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td>productId</td><td>number</td><td>Yes</td></tr>
+            <tr><td>quantity</td><td>number</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/orders/:userId/checkout</span>
+          <span className="vuln-tag">VULN: Race Condition</span>
+        </h3>
+        <p>Checkout cart items</p>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"success": true, "orderId": 123, "total": 999.99}'}</div>
+      </div>
+
+      {/* File Operations */}
+      <h2>File Operations</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-GET">GET</span>
+          <span className="endpoint-path">/api/view-photo</span>
+          <span className="vuln-tag">VULN: Path Traversal</span>
+        </h3>
+        <p>View profile photo (path traversal vulnerable)</p>
+        <h4>Query Parameters:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Example</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>photo</td><td>../../../server.js</td><td>Filename (no validation!)</td></tr>
+          </tbody>
+        </table>
+        <h4>Examples:</h4>
+        <div className="code-block">
+          /api/view-photo?photo=../../../server.js<br/>
+          /api/view-photo?photo=../../../../database/ecommerce.db<br/>
+          /api/view-photo?photo=../../../../../etc/passwd
+        </div>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/feedback</span>
+          <span className="vuln-tag">VULN: XSS + File Upload</span>
+        </h3>
+        <p>Submit feedback (XSS vulnerable)</p>
+        <h4>Request Body (multipart/form-data):</h4>
+        <table className="param-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>userId</td><td>number</td><td>User ID</td></tr>
+            <tr><td>message</td><td>string</td><td>Feedback message (no XSS sanitization)</td></tr>
+            <tr><td>file</td><td>file</td><td>Attachment (weak validation)</td></tr>
+          </tbody>
+        </table>
+        <h4>XSS Payload Example:</h4>
+        <div className="code-block">{'<script>alert(\'XSS\')</script>'}</div>
+      </div>
+
+      {/* Admin Endpoints */}
+      <h2>Admin Operations</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-POST">POST</span>
+          <span className="endpoint-path">/api/admin/logs</span>
+          <span className="vuln-tag">VULN: Command Injection</span>
+        </h3>
+        <p>View system logs (command injection vulnerable)</p>
+        <h4>Request Body:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td>command</td><td>type access.log && whoami</td></tr>
+          </tbody>
+        </table>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"output": "command output here..."}'}</div>
+      </div>
+
+      {/* Special Endpoints */}
+      <h2>Special Endpoints</h2>
+      
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-GET">GET</span>
+          <span className="endpoint-path">/redirect</span>
+          <span className="vuln-tag">VULN: Open Redirect</span>
+        </h3>
+        <p>Redirect to external URL (open redirect vulnerability)</p>
+        <h4>Query Parameters:</h4>
+        <table className="param-table">
+          <thead><tr><th>Parameter</th><th>Example</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>url</td><td>http://evil.com</td><td>Redirect destination (no validation!)</td></tr>
+          </tbody>
+        </table>
+        <h4>Examples:</h4>
+        <div className="code-block">
+          /redirect?url=https://github.com/nr-yolo<br/>
+          /redirect?url=http://malicious-site.com<br/>
+          /redirect?url=javascript:alert('XSS')
+        </div>
+      </div>
+
+      <div className="api-endpoint">
+        <h3>
+          <span className="method-badge method-GET">GET</span>
+          <span className="endpoint-path">/metrics</span>
+          <span className="vuln-tag">VULN: TRACE Header Discovery</span>
+        </h3>
+        <p>Internal metrics (requires custom header)</p>
+        <h4>Required Headers:</h4>
+        <table className="param-table">
+          <thead><tr><th>Header</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>X-Internal-Auth-Key</td><td>secret_metric_key_12345</td></tr>
+          </tbody>
+        </table>
+        <h4>Discovery Method:</h4>
+        <div className="code-block">curl -X TRACE http://localhost:3001/metrics</div>
+        <h4>Response:</h4>
+        <div className="code-block">{'{"secret_key": "...", "database_password": "...", "api_keys": {...}}'}</div>
+      </div>
+
+      <div style={{marginTop: '3rem', padding: '1.5rem', background: '#fff3cd', borderRadius: '8px', border: '2px solid #ffc107'}}>
+        <h3 style={{color: '#856404', marginTop: 0}}>⚠️ Security Warning</h3>
+        <p style={{color: '#856404', margin: 0}}>
+          This API is deliberately vulnerable for security training purposes. 
+          <strong> NEVER use these patterns in production code!</strong>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function AdminFeedbackPage({ user }) {
   const [feedbackList, setFeedbackList] = useState([]);
 
@@ -837,7 +1189,9 @@ function AdminFeedbackPage({ user }) {
 
   return (
     <div className="feedback-page">
-      <h2>User Feedbacks</h2>      
+      <h2>User Feedbacks</h2>
+      <p className="xss-warning">⚠️ WARNING: This page displays unfiltered user content and is vulnerable to XSS attacks</p>
+      
       <div className="feedback-list">
         {feedbackList.length === 0 ? (
           <p>No feedbacks submitted yet.</p>

@@ -664,3 +664,143 @@ body {
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* Welcome Banner */
+.welcome-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.welcome-banner h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+}
+
+.welcome-banner p {
+  margin: 0 0 1.5rem 0;
+  opacity: 0.95;
+}
+
+.github-link {
+  margin-top: 1.5rem;
+}
+
+.github-btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  color: #667eea;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.github-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.vuln-hint {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #ffd700;
+  font-weight: 500;
+}
+
+/* API Documentation Page */
+.api-docs-page {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  max-width: 1400px;
+  margin: 2rem auto;
+}
+
+.api-endpoint {
+  background: #f8f9fa;
+  border-left: 4px solid #667eea;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}
+
+.api-endpoint h3 {
+  color: #667eea;
+  margin-bottom: 0.5rem;
+}
+
+.method-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
+  color: white;
+}
+
+.method-GET { background: #28a745; }
+.method-POST { background: #007bff; }
+.method-PUT { background: #ffc107; color: #333; }
+.method-PATCH { background: #17a2b8; }
+.method-DELETE { background: #dc3545; }
+
+.endpoint-path {
+  font-family: 'Courier New', monospace;
+  background: #e9ecef;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+  display: inline-block;
+}
+
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.param-table th {
+  background: #667eea;
+  color: white;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.param-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.param-table tr:hover {
+  background: #f8f9fa;
+}
+
+.vuln-tag {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: #dc3545;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.code-block {
+  background: #2d2d2d;
+  color: #f8f8f2;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
