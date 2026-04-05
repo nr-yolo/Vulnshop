@@ -63,66 +63,76 @@ This application is designed **exclusively** for:
 
 ---
 
-## 📦 Installation
+## 📦 Installation using docker
 
 ### 1. Clone or Download the Project
 
 ```bash
-cd vulnerable-ecommerce
+git clone https://github.com/nr-yolo/Vulnshop.git
+cd Vulnshop
 ```
 
-### 2. Install Backend Dependencies
+### 2. Install using docker (preferred)
 
 ```bash
-cd backend
-npm install
+docker compose up -d
 ```
 
-### 3. Initialize Database
+### 3. Visit webui
+
+http://localhost:3000/
+
+## 📦 Installation on windows.
+
+### 1. Clone or Download the Project
 
 ```bash
-npm run init-db
+git clone https://github.com/nr-yolo/Vulnshop.git
+cd Vulnshop
 ```
 
-You should see:
-```
-✅ Database initialized successfully!
-📊 Sample data inserted
-🔐 Admin credentials: admin/admin
-```
+### 2. Install node 24 
 
-### 4. Install Frontend Dependencies
+follow node installation documentation.
+
+### 3. Run bat files
+
+double click setup.bat
+double click start-backend.bat
+double click start-frontend.bat
+
+### 4. Visit webui
+
+http://localhost:3000/
+
+## 📦 Installation on linux.
+
+### 1. Clone or Download the Project
 
 ```bash
-cd ../frontend
-npm install
+git clone https://github.com/nr-yolo/Vulnshop.git
+cd Vulnshop
 ```
 
----
+### 2. Install node 24 
 
-## 🚀 Running the Application
+follow node installation documentation.
 
-### Start Backend Server
+### 3. Run sh files
 
-```bash
+double click setup.sh
+
+### 4. start server
+
 cd backend
 npm start
-```
 
-The API server will start on `http://localhost:3001`
-
-### Start Frontend Development Server
-
-Open a new terminal:
-
-```bash
 cd frontend
 npm start
-```
 
-The application will open in your browser at `http://localhost:3000`
+### 5. Visit webui
 
----
+http://localhost:3000/
 
 ## 🔐 Default Credentials
 
@@ -183,6 +193,7 @@ npm run init-db
 If ports 3000 or 3001 are in use:
 - Backend: Edit `server.js` and change PORT variable
 - Frontend: Create `.env` file with `PORT=3002`
+- if you are using the dockerized version you only need to change port number 
 
 ### CORS Errors
 
